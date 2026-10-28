@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a12" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="Nano Wave — hold to ascend, release to descend. A minimalist neon reaction game." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Nano Wave" />
+  <title>Nano Wave</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%230a0a12' width='32' height='32'/%3E%3Crect x='13' y='12' width='6' height='6' fill='%2300f3ff'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0a0a12;
+      --cyan: #00f3ff;
+      --magenta: #ff2eb8;
+      --green: #c6ff3a;
+      --gold: #ffd647;
+      --text: #e9fbff;
+      --muted: #8ea3bb;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Courier New", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    body {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding:
+        max(12px, var(--safe-top))
+        max(12px, env(safe-area-inset-right, 0px))
+        max(12px, var(--safe-bottom))
+        max(12px, env(safe-area-inset-left, 0px));
+      background-color: var(--bg);
+      background-image:
+        linear-gradient(rgba(0, 243, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 243, 255, 0.035) 1px, transparent 1px);
+      background-size: 48px 48px;
+      background-position: center;
+    }
+
+    /* Centered playfield card */
+    #shell {
+      position: relative;
+      width: min(960px, 100%);
+      height: min(640px, calc(100dvh - 24px - var(--safe-top) - var(--safe-bottom)));
+      border-radius: 18px;
+      overflow: hidden;
+      background: #070812;
+      border: 1px solid rgba(0, 243, 255, 0.32);
+      box-shadow:
+        0 0 0 1px rgba(255, 46, 184, 0.08),
+        0 24px 80px rgba(0, 0, 0, 0.55),
+        0 0 42px rgba(0, 243, 255, 0.12);
+      touch-action: none;
+    }
+
+    #view {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    /* The player pixel. Glow is real CSS box-shadow, moved with transform. */
+    #nano {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 2;
+      width: 8px;
+      height: 8px;
+      background: #f4ffff;
+      pointer-events: none;
+      will-change: transform;
+      box-shadow:
+        0 0 4px 1px #ffffff,
+        0 0 10px 3px var(--cyan),
+        0 0 22px 6px rgba(0, 243, 255, 0.95),
+        0 0 46px 12px rgba(0, 243, 255, 0.45);
+      animation: nanoPulse 1.5s ease-in-out infinite;
+    }
+
+    #nano[hidden] { display: none !important; }
+
+    @keyframes nanoPulse {
+      0%, 100% {
+        box-shadow:
+          0 0 4px 1px #ffffff,
+          0 0 10px 3px var(--cyan),
+          0 0 22px 6px rgba(0, 243, 255, 0.9),
+          0 0 42px 12px rgba(0, 243, 255, 0.4);
+      }
+      50% {
+        box-shadow:
+          0 0 5px 1px #ffffff,
+          0 0 14px 4px var(--cyan),
+          0 0 30px 8px rgba(0, 243, 255, 1),
+          0 0 54px 16px rgba(255, 46, 184, 0.28);
+      }
+    }
+
+    /* Faint CRT scanlines over the world, under the HUD and menus */
+    #shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.028),
+        rgba(255, 255, 255, 0.028) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      opacity: 0.45;
+    }
+
+    #hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 4;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      pointer-events: none;
+    }
+
+    #hud[hidden] { display: none !important; }
+
+    .stat {
+      min-width: 96px;
+      padding: 8px 12px 10px;
+      border-radius: 12px;
+      background: rgba(8, 10, 18, 0.62);
+      border: 1px solid rgba(0, 243, 255, 0.28);
+      box-shadow: 0 0 16px rgba(0, 243, 255, 0.08);
+    }
+
+    .stat.best {
+      text-align: right;
+      border-color: rgba(255, 214, 71, 0.38);
+      box-shadow: 0 0 16px rgba(255, 214, 71, 0.08);
+    }
+
+    .label {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      color: rgba(0, 243, 255, 0.72);
+    }
+
+    .stat.best .label { color: rgba(255, 214, 71, 0.78); }
+
+    .value {
+      display: block;
+      margin-top: 4px;
+      font-size: clamp(22px, 4vw, 28px);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--cyan);
+      text-shadow: 0 0 12px rgba(0, 243, 255, 0.65);
+    }
+
+    .stat.best .value {
+      color: var(--gold);
+      text-shadow: 0 0 12px rgba(255, 214, 71, 0.55);
+    }
+
+    .value.record {
+      color: var(--gold);
+      text-shadow: 0 0 14px rgba(255, 214, 71, 0.75);
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+      background: radial-gradient(ellipse at 50% 42%, rgba(10, 10, 18, 0.42), rgba(10, 10, 18, 0.82) 68%);
+      touch-action: none;
+    }
+
+    #overlay[hidden] { display: none !important; }
+
+    .panel { width: min(440px, 100%); }
+
+    .panel[hidden] { display: none !important; }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      font-size: 11px;
+      letter-spacing: 0.28em;
+      color: var(--cyan);
+      text-shadow: 0 0 12px rgba(0, 243, 255, 0.55);
+    }
+
+    h1 {
+      font-size: clamp(36px, 8vw, 64px);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      line-height: 0.95;
+      background: linear-gradient(100deg, #ffffff 0%, var(--cyan) 42%, var(--magenta) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: drop-shadow(0 0 16px rgba(0, 243, 255, 0.35));
+      animation: titlePulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes titlePulse {
+      0%, 100% { filter: drop-shadow(0 0 12px rgba(0, 243, 255, 0.3)); }
+      50% { filter: drop-shadow(0 0 22px rgba(255, 46, 184, 0.4)); }
+    }
+
+    h2 {
+      font-size: clamp(28px, 6vw, 44px);
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: #fff;
+      text-shadow: 0 0 18px rgba(255, 46, 184, 0.5);
+    }
+
+    .subtitle {
+      margin: 18px auto 0;
+      color: var(--muted);
+      font-size: clamp(10px, 2.15vw, 13px);
+      line-height: 1.4;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .results {
+      display: flex;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .result {
+      flex: 1;
+      padding: 12px 8px 14px;
+      border-radius: 12px;
+      background: rgba(7, 8, 16, 0.9);
+      border: 1px solid rgba(0, 243, 255, 0.22);
+    }
+
+    .result.best {
+      border-color: rgba(255, 214, 71, 0.35);
+    }
+
+    .result .label { margin-bottom: 6px; }
+
+    .result strong {
+      display: block;
+      font-size: clamp(26px, 6vw, 36px);
+      font-weight: 700;
+      line-height: 1;
+      color: var(--cyan);
+      text-shadow: 0 0 12px rgba(0, 243, 255, 0.55);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .result.best strong {
+      color: var(--gold);
+      text-shadow: 0 0 12px rgba(255, 214, 71, 0.5);
+    }
+
+    #new-best {
+      margin-top: 14px;
+      font-size: 12px;
+      letter-spacing: 0.24em;
+      color: var(--gold);
+      text-shadow: 0 0 10px rgba(255, 214, 71, 0.65);
+    }
+
+    #new-best[hidden] { display: none !important; }
+
+    .cta {
+      width: 100%;
+      margin-top: 26px;
+      min-height: 52px;
+      padding: 0 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(0, 243, 255, 0.72);
+      background: linear-gradient(180deg, rgba(0, 243, 255, 0.2), rgba(0, 243, 255, 0.05));
+      color: #f4ffff;
+      font-family: inherit;
+      font-size: 14px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      cursor: pointer;
+      touch-action: manipulation;
+      box-shadow:
+        0 0 18px rgba(0, 243, 255, 0.25),
+        inset 0 0 14px rgba(0, 243, 255, 0.1);
+    }
+
+    .cta:hover {
+      background: linear-gradient(180deg, rgba(0, 243, 255, 0.3), rgba(255, 46, 184, 0.12));
+      box-shadow: 0 0 28px rgba(0, 243, 255, 0.42);
+    }
+
+    .cta:active { transform: translateY(1px); }
+
+    .cta:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 3px;
+    }
+
+    .menu-kofi {
+      width: 100%;
+      margin-top: 12px;
+      touch-action: manipulation;
+    }
+
+    .menu-kofi .btn-container,
+    .menu-kofi a.kofi-button {
+      width: 100% !important;
+    }
+
+    .menu-kofi .btn-container { display: block !important; }
+
+    a.kofi-button {
+      background-color: #72a4f2 !important;
+      color: #fff !important;
+      box-shadow: 0 0 16px rgba(114, 164, 242, 0.55) !important;
+      display: block !important;
+      box-sizing: border-box;
+      border: none !important;
+      border-radius: 14px !important;
+      line-height: 52px !important;
+      min-height: 52px;
+      font-size: 15px !important;
+      font-family: "Courier New", ui-monospace, "SF Mono", Menlo, Consolas, monospace !important;
+      text-decoration: none !important;
+      touch-action: manipulation;
+    }
+
+    a.kofi-button img.kofiimg {
+      content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 64'%3E%3Cellipse cx='18' cy='7' rx='12' ry='4.5' fill='%23ffffff'/%3E%3Cpath d='M6 8h24v46c0 3.2-5.4 6-12 6s-12-2.8-12-6V8z' fill='%23ffffff'/%3E%3Cpath d='M6 8h24v7H6z' fill='%23f4f4f6'/%3E%3Cpath d='M11 27c1.1 6 1.8 12 .5 18' stroke='%23111111' stroke-width='2.3' fill='none' stroke-linecap='round'/%3E%3Cpath d='M17 22c1.3 7 2 14 .3 22' stroke='%23111111' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M23 27c1 5.4 1.6 10.5 .4 16' stroke='%232f9e4a' stroke-width='2.3' fill='none' stroke-linecap='round'/%3E%3Cellipse cx='18' cy='56' rx='12' ry='4.2' fill='%23e8e8ec'/%3E%3C/svg%3E") !important;
+      width: 13px !important;
+      height: 22px !important;
+      margin-right: 7px !important;
+      margin-bottom: 1px !important;
+    }
+
+    a.kofi-button .kofiimg::after { content: none !important; }
+
+    .noscript {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 0; }
+      #shell {
+        width: 100%;
+        height: 100dvh;
+        border-radius: 0;
+        border: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #nano, h1 { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <main id="shell" data-state="menu">
+    <canvas id="view" aria-hidden="true"></canvas>
+    <div id="nano" aria-hidden="true"></div>
+
+    <header id="hud" hidden>
+      <div class="stat">
+        <span class="label">SCORE</span>
+        <span id="score" class="value">0</span>
+      </div>
+      <div class="stat best">
+        <span class="label">BEST</span>
+        <span id="best" class="value">0</span>
+      </div>
+    </header>
+
+    <div id="overlay">
+      <section id="screen-start" class="panel">
+        <p class="eyebrow">NEON ARCADE</p>
+        <h1>NANO WAVE</h1>
+        <p class="subtitle">HOLD TO ASCEND / RELEASE TO DESCEND</p>
+        <button id="start-btn" class="cta" type="button">START GAME</button>
+        <div class="menu-kofi">
+          <script src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"></script>
+          <script>kofiwidget2.init("Buy me a Monster", "#72a4f2", "H6V529LERC");kofiwidget2.draw();</script>
+        </div>
+      </section>
+
+      <section id="screen-over" class="panel" hidden>
+        <p class="eyebrow">CARRIER DOWN</p>
+        <h2>GAME OVER</h2>
+        <div class="results">
+          <div class="result">
+            <span class="label">SCORE</span>
+            <strong id="over-score">0</strong>
+          </div>
+          <div class="result best">
+            <span class="label">BEST</span>
+            <strong id="over-best">0</strong>
+          </div>
+        </div>
+        <p id="new-best" hidden>NEW BEST</p>
+        <button id="again-btn" class="cta" type="button">PLAY AGAIN</button>
+      </section>
+    </div>
+  </main>
+  <noscript><p class="noscript">Nano Wave needs JavaScript to run.</p></noscript>
+
+  <script>
+    (() => {
+      "use strict";
+
+      /**
+       * Nano Wave
+       * Hold (space / mouse / tap) to rise, release to fall.
+       * The world scrolls left. Neon security bars are lethal.
+       * Best score persists in localStorage under "nano-wave-best".
+       */
+
+      const BEST_KEY = "nano-wave-best";
+
+      // Speeds are fractions of the playfield so phones and desktops
+      // keep a similar reaction window.
+      const TUNING = {
+        nanoX: 0.28,
+        accel: 2.7,          // view-heights per second squared
+        maxVy: 0.78,         // view-heights per second
+        drag: 0.35,
+        forceEase: 9,        // how quickly hold/release blends
+        scorePerPx: 1 / 14,
+        rampScore: 170,
+        startSpeed: 0.25,    // view-widths per second
+        maxSpeed: 0.5,
+        startGap: 0.48,      // opening height, fraction of view
+        minGap: 0.24,
+        minGapPx: 88,
+        startSpacing: 0.62,  // distance between gates, fraction of view
+        minSpacing: 0.4,
+        firstGate: 0.48
+      };
+
+      const shell = document.getElementById("shell");
+      const canvas = document.getElementById("view");
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const nanoEl = document.getElementById("nano");
+      const hud = document.getElementById("hud");
+      const scoreEl = document.getElementById("score");
+      const bestEl = document.getElementById("best");
+      const overlay = document.getElementById("overlay");
+      const screenStart = document.getElementById("screen-start");
+      const screenOver = document.getElementById("screen-over");
+      const startBtn = document.getElementById("start-btn");
+      const againBtn = document.getElementById("again-btn");
+      const overScoreEl = document.getElementById("over-score");
+      const overBestEl = document.getElementById("over-best");
+      const newBestEl = document.getElementById("new-best");
+
+      if (!ctx) return;
+
+      const pointers = new Set();
+      const nano = { x: 0, y: 0, vy: 0 };
+      const obstacles = [];
+      const trail = [];
+      const particles = [];
+
+      let state = "menu";
+      let viewW = 0;
+      let viewH = 0;
+      let dpr = 1;
+      let score = 0;
+      let best = 0;
+      let hudScore = -1;
+      let shownBest = -1;
+      let heldMix = 0;
+      let keyHeld = false;
+      let time = 0;
+      let spawnCarry = 0;
+      let gridOffset = 0;
+      let shake = 0;
+      let flash = 0;
+      let nanoPx = 8;
+      let last = 0;
+
+      function clamp(v, lo, hi) {
+        return v < lo ? lo : v > hi ? hi : v;
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function loadBest() {
+        try {
+          const n = Math.floor(Number(localStorage.getItem(BEST_KEY)));
+          return Number.isFinite(n) && n > 0 ? n : 0;
+        } catch (err) {
+          return 0;
+        }
+      }
+
+      function saveBest(n) {
+        try {
+          localStorage.setItem(BEST_KEY, String(n));
+        } catch (err) {
+          /* private mode / blocked storage */
+        }
+      }
+
+      function nanoSize() {
+        return clamp(Math.round(viewW * 0.011), 8, 11);
+      }
+
+      function isHeld() {
+        return keyHeld || pointers.size > 0;
+      }
+
+      /* ---------- input ---------- */
+
+      function isMenuLink(target) {
+        return !!(target && target.closest && target.closest("button, a, .menu-kofi"));
+      }
+
+      function pressPointer(e) {
+        if (isMenuLink(e.target)) return;
+        if (state !== "play") return;
+        if (e.cancelable) e.preventDefault();
+        pointers.add(e.pointerId);
+        try { shell.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      }
+
+      function releasePointer(e) {
+        pointers.delete(e.pointerId);
+      }
+
+      function bindInput() {
+        shell.addEventListener("pointerdown", pressPointer);
+        window.addEventListener("pointerup", releasePointer);
+        window.addEventListener("pointercancel", releasePointer);
+
+        // Kill the mobile scroll / double-tap delay. Hold state itself
+        // comes from pointer events, which fire on the same frame as touch.
+        document.addEventListener("touchstart", (e) => {
+          if (isMenuLink(e.target)) return;
+          if (e.cancelable) e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener("touchmove", (e) => {
+          if (e.cancelable) e.preventDefault();
+        }, { passive: false });
+
+        window.addEventListener("keydown", (e) => {
+          if (e.code !== "Space") return;
+          e.preventDefault();
+          if (e.repeat) return;
+          // Mark the hold before starting so a space-bar start rises immediately.
+          keyHeld = true;
+          if (state !== "play") startGame();
+        });
+
+        window.addEventListener("keyup", (e) => {
+          if (e.code !== "Space") return;
+          e.preventDefault();
+          keyHeld = false;
+        });
+
+        window.addEventListener("blur", () => {
+          keyHeld = false;
+          pointers.clear();
+        });
+
+        canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+        startBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          startGame();
+        });
+
+        againBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          startGame();
+        });
+      }
+
+      /* ---------- difficulty & gates ---------- */
+
+      function ramp() {
+        return 1 - Math.exp(-score / TUNING.rampScore);
+      }
+
+      function difficulty() {
+        const t = ramp();
+        const gap = Math.max(TUNING.minGapPx, viewH * lerp(TUNING.startGap, TUNING.minGap, t));
+        return {
+          speed: viewW * lerp(TUNING.startSpeed, TUNING.maxSpeed, t),
+          gap: Math.min(gap, viewH - 40),
+          spacing: viewW * lerp(TUNING.startSpacing, TUNING.minSpacing, t)
+        };
+      }
+
+      /**
+       * A gate is a top bar and a bottom bar with one opening.
+       * center is stored as a fraction of height so resizes stay fair.
+       */
+      function spawnGate(gapH) {
+        const w = clamp(Math.round(viewW * 0.026), 16, 34);
+        const gap = clamp(gapH, TUNING.minGapPx * 0.75, viewH - 36);
+        const usable = Math.max(0, viewH - gap - 32);
+        const gapY = 16 + Math.random() * usable;
+        obstacles.push({
+          x: viewW + w + 4,
+          w,
+          center: (gapY + gap / 2) / viewH,
+          gapH: gap
+        });
+      }
+
+      function resolveGate(gate) {
+        const gapH = Math.min(gate.gapH, Math.max(24, viewH - 36));
+        const y = clamp(gate.center * viewH - gapH / 2, 14, viewH - 14 - gapH);
+        return {
+          top: { x: gate.x, y: 0, w: gate.w, h: y },
+          bot: { x: gate.x, y: y + gapH, w: gate.w, h: Math.max(0, viewH - (y + gapH)) }
+        };
+      }
+
+      function overlaps(a, b) {
+        return b.h > 1 &&
+          a.x < b.x + b.w &&
+          a.x + a.w > b.x &&
+          a.y < b.y + b.h &&
+          a.y + a.h > b.y;
+      }
+
+      /* ---------- simulation ---------- */
+
+      function scrollWorld(step) {
+        gridOffset = (gridOffset + step) % 1792;
+        for (let i = 0; i < obstacles.length; i++) obstacles[i].x -= step;
+        for (let i = 0; i < trail.length; i++) trail[i].x -= step;
+
+        let dead = 0;
+        while (dead < obstacles.length && obstacles[dead].x + obstacles[dead].w < -12) dead++;
+        if (dead) obstacles.splice(0, dead);
+
+        let old = 0;
+        while (old < trail.length && trail[old].x < -24) old++;
+        if (old) trail.splice(0, old);
+      }
+
+      function pushTrail() {
+        const prev = trail[trail.length - 1];
+        if (!prev || Math.abs(nano.x - prev.x) + Math.abs(nano.y - prev.y) > 5) {
+          trail.push({ x: nano.x, y: nano.y });
+        }
+        if (trail.length > 220) trail.splice(0, trail.length - 180);
+      }
+
+      /**
+       * Hold applies buoyancy, release applies light gravity.
+       * The force eases in and out, and velocity carries, so the path
+       * bends in smooth sine-like curves instead of snapping.
+       */
+      function stepPhysics(dt) {
+        const target = isHeld() ? 1 : 0;
+        heldMix += (target - heldMix) * (1 - Math.exp(-TUNING.forceEase * dt));
+        const accel = lerp(TUNING.accel, -TUNING.accel, heldMix) * viewH;
+        nano.vy += accel * dt;
+        nano.vy *= Math.exp(-TUNING.drag * dt);
+        const maxV = TUNING.maxVy * viewH;
+        nano.vy = clamp(nano.vy, -maxV, maxV);
+        nano.y += nano.vy * dt;
+
+        const half = nanoPx / 2;
+        if (nano.y < half) {
+          nano.y = half;
+          if (nano.vy < 0) nano.vy = 0;
+        } else if (nano.y > viewH - half) {
+          nano.y = viewH - half;
+          if (nano.vy > 0) nano.vy = 0;
+        }
+      }
+
+      function checkHit() {
+        const s = nanoPx * 0.7;
+        const box = { x: nano.x - s / 2, y: nano.y - s / 2, w: s, h: s };
+        for (let i = 0; i < obstacles.length; i++) {
+          const gate = resolveGate(obstacles[i]);
+          if (overlaps(box, gate.top) || overlaps(box, gate.bot)) return true;
+        }
+        return false;
+      }
+
+      function updateMenu(dt) {
+        time += dt;
+        const step = viewW * 0.15 * dt;
+        scrollWorld(step);
+        // Demo wave stays in the lower-left corner, clear of the title and button.
+        nano.x = viewW * 0.14;
+        nano.y = viewH * (0.88 + Math.sin(time * 1.65) * 0.035);
+        nano.vy = 0;
+        pushTrail();
+        spawnCarry -= step;
+        const spacing = viewW * 0.92;
+        while (spawnCarry <= 0) {
+          spawnGate(viewH * 0.52);
+          spawnCarry += spacing;
+        }
+      }
+
+      function updatePlay(dt) {
+        const diff = difficulty();
+        const step = diff.speed * dt;
+        scrollWorld(step);
+        stepPhysics(dt);
+        score += step * TUNING.scorePerPx;
+        pushTrail();
+
+        spawnCarry -= step;
+        while (spawnCarry <= 0) {
+          const gap = diff.gap * (0.92 + Math.random() * 0.14);
+          spawnGate(gap);
+          spawnCarry += diff.spacing * (0.8 + Math.random() * 0.4);
+        }
+
+        if (checkHit()) fail();
+      }
+
+      function updateOver(dt) {
+        flash = Math.max(0, flash - dt * 1.35);
+        shake *= Math.exp(-3.2 * dt);
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.life -= dt * 1.5;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += viewH * 0.35 * dt;
+          if (p.life <= 0) particles.splice(i, 1);
+        }
+      }
+
+      function burst(x, y) {
+        const count = 24;
+        for (let i = 0; i < count; i++) {
+          const a = (Math.PI * 2 * i) / count + Math.random() * 0.25;
+          const speed = viewW * (0.06 + Math.random() * 0.2);
+          particles.push({
+            x,
+            y,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed,
+            life: 0.7 + Math.random() * 0.5
+          });
+        }
+      }
+
+      /* ---------- rendering ---------- */
+
+      function drawGrid(offset, spacing, alpha) {
+        const startX = -((offset % spacing) + spacing) % spacing;
+        ctx.beginPath();
+        for (let x = startX; x <= viewW; x += spacing) {
+          ctx.moveTo(x + 0.5, 0);
+          ctx.lineTo(x + 0.5, viewH);
+        }
+        for (let y = 0; y <= viewH; y += spacing) {
+          ctx.moveTo(0, y + 0.5);
+          ctx.lineTo(viewW, y + 0.5);
+        }
+        ctx.strokeStyle = `rgba(0, 243, 255, ${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      function drawBar(rect, edge) {
+        const { x, y, w, h } = rect;
+        if (h < 1 || w < 1 || x > viewW + 8 || x + w < -8) return;
+        ctx.save();
+        ctx.shadowColor = "rgba(198, 255, 58, 0.95)";
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = "#c6ff3a";
+        ctx.fillRect(x, y, w, h);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(4, 16, 0, 0.42)";
+        ctx.fillRect(x + 3, y, Math.max(1, w - 6), h);
+        ctx.fillStyle = "#f4ffd2";
+        if (edge === "bottom") ctx.fillRect(x, y + h - 2, w, 2);
+        else ctx.fillRect(x, y, w, 2);
+        ctx.restore();
+      }
+
+      function drawWorld() {
+        const glow = ctx.createRadialGradient(
+          viewW * 0.5, viewH * 0.5, 20,
+          viewW * 0.5, viewH * 0.5, viewW * 0.65
+        );
+        glow.addColorStop(0, "rgba(0, 243, 255, 0.05)");
+        glow.addColorStop(1, "rgba(0, 243, 255, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, viewW, viewH);
+
+        drawGrid(gridOffset * 0.4, 64, 0.05);
+        drawGrid(gridOffset, 32, 0.12);
+
+        for (let i = 0; i < obstacles.length; i++) {
+          const gate = resolveGate(obstacles[i]);
+          drawBar(gate.top, "bottom");
+          drawBar(gate.bot, "top");
+        }
+
+        drawTrail();
+        drawParticles();
+        drawEdgeFade();
+      }
+
+      function drawTrail() {
+        const n = trail.length;
+        if (n < 2) return;
+        const drawFrom = (index) => {
+          ctx.beginPath();
+          ctx.moveTo(trail[index].x, trail[index].y);
+          for (let i = index + 1; i < n; i++) ctx.lineTo(trail[i].x, trail[i].y);
+          ctx.stroke();
+        };
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#00f3ff";
+        ctx.shadowColor = "rgba(0, 243, 255, 0.85)";
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = Math.max(2.5, nanoPx * 0.7);
+        ctx.globalAlpha = 0.28;
+        drawFrom(0);
+        const mid = Math.max(0, n - 36);
+        ctx.globalAlpha = 0.7;
+        ctx.lineWidth = Math.max(2, nanoPx * 0.5);
+        drawFrom(mid);
+        ctx.restore();
+      }
+
+      function drawParticles() {
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          ctx.globalAlpha = clamp(p.life, 0, 1);
+          ctx.fillStyle = p.life > 0.45 ? "#f4ffff" : "#00f3ff";
+          ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function drawEdgeFade() {
+        const top = ctx.createLinearGradient(0, 0, 0, 26);
+        top.addColorStop(0, "rgba(0, 243, 255, 0.14)");
+        top.addColorStop(1, "rgba(0, 243, 255, 0)");
+        ctx.fillStyle = top;
+        ctx.fillRect(0, 0, viewW, 26);
+
+        const bot = ctx.createLinearGradient(0, viewH - 26, 0, viewH);
+        bot.addColorStop(0, "rgba(0, 243, 255, 0)");
+        bot.addColorStop(1, "rgba(0, 243, 255, 0.14)");
+        ctx.fillStyle = bot;
+        ctx.fillRect(0, viewH - 26, viewW, 26);
+      }
+
+      function placeNano() {
+        const next = nanoSize();
+        if (next !== nanoPx) {
+          nanoPx = next;
+          nanoEl.style.width = nanoPx + "px";
+          nanoEl.style.height = nanoPx + "px";
+        }
+        nanoEl.hidden = state === "over";
+        nanoEl.style.transform = `translate3d(${(nano.x - nanoPx / 2).toFixed(2)}px, ${(nano.y - nanoPx / 2).toFixed(2)}px, 0)`;
+      }
+
+      function renderHud() {
+        const shown = Math.floor(score);
+        if (shown !== hudScore) {
+          hudScore = shown;
+          scoreEl.textContent = String(shown);
+          scoreEl.classList.toggle("record", best > 0 && shown > best);
+        }
+        if (best !== shownBest) {
+          shownBest = best;
+          bestEl.textContent = String(best);
+        }
+      }
+
+      function render() {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = "#0a0a12";
+        ctx.fillRect(0, 0, viewW, viewH);
+
+        ctx.save();
+        if (shake > 0.4) {
+          ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+        }
+        drawWorld();
+        ctx.restore();
+
+        const vignette = ctx.createRadialGradient(
+          viewW * 0.5, viewH * 0.5, viewH * 0.35,
+          viewW * 0.5, viewH * 0.5, viewW * 0.72
+        );
+        vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+        vignette.addColorStop(1, "rgba(0, 0, 0, 0.38)");
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, viewW, viewH);
+
+        if (flash > 0) {
+          ctx.fillStyle = `rgba(255, 46, 184, ${flash * 0.32})`;
+          ctx.fillRect(0, 0, viewW, viewH);
+        }
+
+        placeNano();
+        if (state === "play") renderHud();
+      }
+
+      /* ---------- screens ---------- */
+
+      function showScreen(mode) {
+        state = mode;
+        shell.dataset.state = mode;
+        overlay.hidden = mode === "play";
+        screenStart.hidden = mode !== "menu";
+        screenOver.hidden = mode !== "over";
+        hud.hidden = mode !== "play";
+        nanoEl.hidden = mode === "over";
+      }
+
+      function startGame() {
+        if (viewW < 20 || viewH < 20) return;
+        score = 0;
+        hudScore = -1;
+        heldMix = isHeld() ? 1 : 0;
+        nano.x = viewW * TUNING.nanoX;
+        nano.y = viewH * 0.5;
+        nano.vy = 0;
+        obstacles.length = 0;
+        trail.length = 0;
+        particles.length = 0;
+        spawnCarry = viewW * TUNING.firstGate;
+        shake = 0;
+        flash = 0;
+        showScreen("play");
+        renderHud();
+      }
+
+      function fail() {
+        if (state !== "play") return;
+        const finalScore = Math.floor(score);
+        const record = finalScore > best;
+        if (record) {
+          best = finalScore;
+          saveBest(best);
+          shownBest = -1;
+        }
+        overScoreEl.textContent = String(finalScore);
+        overBestEl.textContent = String(best);
+        newBestEl.hidden = !record;
+        burst(nano.x, nano.y);
+        shake = 12;
+        flash = 1;
+        showScreen("over");
+      }
+
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        const bw = Math.max(1, Math.round(rect.width * dpr));
+        const bh = Math.max(1, Math.round(rect.height * dpr));
+        if (canvas.width !== bw || canvas.height !== bh) {
+          canvas.width = bw;
+          canvas.height = bh;
+        }
+        viewW = rect.width || viewW;
+        viewH = rect.height || viewH;
+        if (state !== "menu") nano.x = viewW * TUNING.nanoX;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function frame(now) {
+        const dt = Math.min(0.034, Math.max(0, (now - last) / 1000));
+        last = now;
+        if (viewW > 20 && viewH > 20) {
+          if (state !== "menu") nano.x = viewW * TUNING.nanoX;
+          if (state === "menu") updateMenu(dt);
+          else if (state === "play") updatePlay(dt);
+          else updateOver(dt);
+          render();
+        }
+        requestAnimationFrame(frame);
+      }
+
+      function boot() {
+        resize();
+        best = loadBest();
+        bestEl.textContent = String(best);
+        overBestEl.textContent = String(best);
+        shownBest = best;
+        spawnCarry = Math.max(viewW, 1) * 0.2;
+        nano.y = viewH * 0.5;
+        showScreen("menu");
+        bindInput();
+        last = performance.now();
+        requestAnimationFrame(frame);
+      }
+
+      window.addEventListener("resize", resize);
+      if (typeof ResizeObserver === "function") {
+        const observer = new ResizeObserver(() => resize());
+        observer.observe(shell);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", boot, { once: true });
+      } else {
+        boot();
+      }
+    })();
+  </script>
+</body>
+</html>
